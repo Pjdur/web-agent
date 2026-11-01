@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gemini Local Web Agent</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #171b24;
+      --border: #2a3142;
+      --text: #e4e7ef;
+      --muted: #8b93a7;
+      --accent: #4f8cff;
+      --success: #2ea043;
+      --danger: #da3633;
+      --code-bg: #0b0d12;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Bar */
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .brand { font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
+    .settings { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    input, select, button, textarea {
+      font-family: inherit;
+      font-size: 0.9rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--code-bg);
+      color: var(--text);
+      padding: 7px 11px;
+    }
+    input:focus, textarea:focus, select:focus { outline: 1px solid var(--accent); }
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      font-weight: 600;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-secondary { background: #293040; border: 1px solid var(--border); }
+    .btn-approve { background: var(--success); }
+    .btn-deny { background: var(--danger); }
+
+    /* Layout */
+    .main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    aside {
+      width: 260px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 14px;
+      overflow-y: auto;
+    }
+    .sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .file-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .file-item {
+      padding: 6px 8px;
+      border-radius: 5px;
+      font-size: 0.86rem;
+      cursor: pointer;
+      color: var(--text);
+      word-break: break-all;
+    }
+    .file-item:hover { background: #232938; }
+
+    /* Chat Area */
+    .chat-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #chatLog {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .msg {
+      max-width: 820px;
+      padding: 13px 16px;
+      border-radius: 10px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 0.94rem;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: #1f3a68;
+      border: 1px solid #2e569c;
+    }
+    .msg.agent {
+      align-self: flex-start;
+      background: var(--panel);
+      border: 1px solid var(--border);
+    }
+
+    /* Permission Card */
+    .tool-card {
+      max-width: 820px;
+      background: #191f2c;
+      border: 1px solid #3c4760;
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .tool-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: #9ecbff;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      padding: 10px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.83rem;
+      color: #d1d7e6;
+      max-height: 260px;
+    }
+    .tool-actions { display: flex; gap: 8px; align-items: center; }
+    .badge {
+      font-size: 0.78rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .badge.approved { background: rgba(46, 160, 67, 0.2); color: #56d364; }
+    .badge.denied { background: rgba(218, 54, 51, 0.2); color: #f85149; }
+
+    /* Input Bar */
+    .composer {
+      padding: 14px 20px;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+    }
+    #promptInput {
+      flex: 1;
+      resize: none;
+      height: 46px;
+      padding-top: 11px;
+    }
+
+    /* File Preview Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      width: 100%;
+      max-width: 760px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 12px;
+    }
+    .modal pre { max-height: 60vh; flex: 1; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">🤖 Gemini Local Agent</div>
+    <div class="settings">
+      <input type="password" id="apiKey" placeholder="Paste Gemini API Key..." style="width: 230px;" />
+      <input type="text" id="modelInput" list="modelSuggestions" value="gemini-3.8-flash" placeholder="Model ID" style="width: 185px;" />
+      <datalist id="modelSuggestions">
+        <option value="gemini-3.8-flash"></option>
+        <option value="gemini-3.5-flash-lite"></option>
+        <option value="gemini-2.5-flash"></option>
+        <option value="gemini-2.5-pro"></option>
+      </datalist>
+      <label style="font-size: 0.84rem; color: var(--muted); display:flex; align-items:center; gap:5px; cursor:pointer;">
+        <input type="checkbox" id="autoApproveRead" checked /> Auto-approve read/list
+      </label>
+      <button class="btn-secondary" onclick="resetChat()">Reset Chat</button>
+    </div>
+  </header>
+
+  <div class="main-container">
+    <aside>
+      <div class="sidebar-header">
+        <span>Workspace Files</span>
+        <button class="btn-secondary" style="padding: 3px 7px; font-size: 0.75rem;" onclick="loadFiles()">↻</button>
+      </div>
+      <div id="workspacePath" style="font-size: 0.72rem; color: var(--muted); margin-bottom: 10px; word-break: break-all;"></div>
+      <ul class="file-list" id="fileList"></ul>
+    </aside>
+
+    <section class="chat-section">
+      <div id="chatLog">
+        <div class="msg agent">Hello! Enter your Gemini API key above and tell me what you'd like to build, edit, or run inside your workspace. Whenever I need to modify files or run shell commands, I will ask for your permission first.</div>
+      </div>
+
+      <div class="composer">
+        <textarea id="promptInput" placeholder="Ask the agent to create files, edit code, or run commands... (Enter to send, Shift+Enter for newline)"></textarea>
+        <button id="sendBtn" onclick="sendMessage()">Send</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- File Viewer Modal -->
+  <div class="modal-backdrop" id="fileModal" onclick="if(event.target===this) closeModal()">
+    <div class="modal">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong id="modalTitle">file.txt</strong>
+        <button class="btn-secondary" onclick="closeModal()">Close</button>
+      </div>
+      <pre id="modalContent"></pre>
+    </div>
+  </div>
+
+  <script>
+    let sessionId = localStorage.getItem("agent_session_id") || "";
+    const apiKeyInput = document.getElementById("apiKey");
+    const chatLog = document.getElementById("chatLog");
+    const promptInput = document.getElementById("promptInput");
+    const sendBtn = document.getElementById("sendBtn");
+
+    // Persist API key locally in browser storage for convenience
+    apiKeyInput.value = localStorage.getItem("gemini_api_key") || "";
+    apiKeyInput.addEventListener("input", () => {
+      localStorage.setItem("gemini_api_key", apiKeyInput.value.trim());
+    });
+
+    promptInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    function appendMessage(role, text) {
+      if (!text) return;
+      const div = document.createElement("div");
+      div.className = `msg ${role}`;
+      div.textContent = text;
+      chatLog.appendChild(div);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function setBusy(busy) {
+      sendBtn.disabled = busy;
+      promptInput.disabled = busy;
+      sendBtn.textContent = busy ? "Working..." : "Send";
+    }
+
+    async function sendMessage() {
+      const text = promptInput.value.trim();
+      const apiKey = apiKeyInput.value.trim();
+      const model = document.getElementById("modelInput").value.trim();
+
+      if (!apiKey) {
+        alert("Please paste your Gemini API key in the top bar first.");
+        apiKeyInput.focus();
+        return;
+      }
+      if (!text) return;
+
+      promptInput.value = "";
+      appendMessage("user", text);
+      setBusy(true);
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey, model, sessionId, message: text })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Request failed");
+
+        sessionId = data.sessionId;
+        localStorage.setItem("agent_session_id", sessionId);
+
+        if (data.text) appendMessage("agent", data.text);
+        if (data.toolCalls && data.toolCalls.length > 0) {
+          await handleToolCalls(data.toolCalls);
+        } else {
+          setBusy(false);
+        }
+      } catch (err) {
+        appendMessage("agent", `⚠️ Error: ${err.message}`);
+        setBusy(false);
+      }
+    }
+
+    async function handleToolCalls(toolCalls) {
+      const autoRead = document.getElementById("autoApproveRead").checked;
+      const decisions = new Array(toolCalls.length).fill(null);
+
+      const batchContainer = document.createElement("div");
+      batchContainer.style.display = "flex";
+      batchContainer.style.flexDirection = "column";
+      batchContainer.style.gap = "12px";
+      chatLog.appendChild(batchContainer);
+
+      let resolvedCount = 0;
+
+      const checkAllResolved = async () => {
+        if (resolvedCount < toolCalls.length) return;
+        await submitDecisions(decisions, batchContainer);
+      };
+
+      toolCalls.forEach((tc, idx) => {
+        const card = document.createElement("div");
+        card.className = "tool-card";
+
+        let detailText = JSON.stringify(tc.args, null, 2);
+        if (tc.name === "run_command") {
+          detailText = `$ ${tc.args.command}`;
+        } else if (tc.name === "write_file") {
+          detailText = `File: ${tc.args.filepath}\n\n${tc.args.content}`;
+        }
+
+        card.innerHTML = `
+          <div class="tool-header">
+            <span>⚡ Permission Requested: <code>${tc.name}</code></span>
+            <span class="status-slot"></span>
+          </div>
+          <pre></pre>
+          <div class="tool-actions">
+            <button class="btn-approve">Approve & Run</button>
+            <button class="btn-deny">Deny</button>
+          </div>
+        `;
+        card.querySelector("pre").textContent = detailText;
+        batchContainer.appendChild(card);
+
+        const actionsDiv = card.querySelector(".tool-actions");
+        const statusSlot = card.querySelector(".status-slot");
+
+        const finalizeChoice = (approved) => {
+          decisions[idx] = { ...tc, approved };
+          actionsDiv.remove();
+          statusSlot.innerHTML = approved
+            ? `<span class="badge approved">Approved</span>`
+            : `<span class="badge denied">Denied</span>`;
+          resolvedCount++;
+          checkAllResolved();
+        };
+
+        card.querySelector(".btn-approve").onclick = () => finalizeChoice(true);
+        card.querySelector(".btn-deny").onclick = () => finalizeChoice(false);
+
+        // Optional convenience: auto-approve safe read-only operations
+        if (autoRead && (tc.name === "read_file" || tc.name === "list_files")) {
+          finalizeChoice(true);
+        }
+      });
+
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    async function submitDecisions(decisions, container) {
+      const apiKey = apiKeyInput.value.trim();
+      const model = document.getElementById("modelInput").value.trim();
+
+      try {
+        const res = await fetch("/api/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey, model, sessionId, decisions })
+        });
+        const data = await res.json();
+
+        // Display execution outputs underneath the cards
+        if (data.executionLogs) {
+          data.executionLogs.forEach((log) => {
+            const outPre = document.createElement("pre");
+            outPre.style.borderColor = log.approved ? "#2ea043" : "#da3633";
+            outPre.textContent = `Result (${log.name}):\n` + JSON.stringify(log.result, null, 2);
+            container.appendChild(outPre);
+          });
+        }
+
+        await loadFiles(); // Refresh workspace sidebar
+
+        if (!res.ok) throw new Error(data.error || "Execution failed");
+
+        if (data.text) appendMessage("agent", data.text);
+
+        if (data.toolCalls && data.toolCalls.length > 0) {
+          await handleToolCalls(data.toolCalls);
+        } else {
+          setBusy(false);
+        }
+      } catch (err) {
+        appendMessage("agent", `⚠️ Error: ${err.message}`);
+        setBusy(false);
+      }
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    async function loadFiles() {
+      const res = await fetch("/api/files");
+      const data = await res.json();
+      document.getElementById("workspacePath").textContent = data.workspace;
+      const ul = document.getElementById("fileList");
+      ul.innerHTML = "";
+      if (data.files.length === 0) {
+        ul.innerHTML = `<li style="color:var(--muted); font-size:0.82rem;">(Empty workspace)</li>`;
+        return;
+      }
+      data.files.forEach((f) => {
+        const li = document.createElement("li");
+        li.className = "file-item";
+        li.textContent = "📄 " + f;
+        li.onclick = () => previewFile(f);
+        ul.appendChild(li);
+      });
+    }
+
+    async function previewFile(path) {
+      const res = await fetch(`/api/file?path=${encodeURIComponent(path)}`);
+      const data = await res.json();
+      document.getElementById("modalTitle").textContent = path;
+      document.getElementById("modalContent").textContent = data.content ?? data.error;
+      document.getElementById("fileModal").style.display = "flex";
+    }
+
+    function closeModal() {
+      document.getElementById("fileModal").style.display = "none";
+    }
+
+    async function resetChat() {
+      if (sessionId) {
+        await fetch("/api/reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId })
+        });
+      }
+      sessionId = "";
+      localStorage.removeItem("agent_session_id");
+      chatLog.innerHTML = `<div class="msg agent">Conversation reset. Ready for a new task!</div>`;
+      setBusy(false);
+    }
+
+    loadFiles();
+  </script>
+</body>
+</html>
