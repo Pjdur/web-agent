@@ -18,13 +18,10 @@ SYSTEM_INSTRUCTION = f"""You are an autonomous, helpful software engineering AI 
 You operate inside a workspace directory located at: {WORKSPACE_DIR}
 All file paths you read or write should be relative to this workspace directory.
 
-Capabilities:
-1. List files (`list_files`)
-2. Read file contents (`read_file`)
-3. Create or overwrite files (`write_file`)
-4. Execute shell commands (`run_command`)
-
-Always explain briefly what you are about to do before invoking a tool, and summarize the results clearly afterward.
+Important execution constraints:
+1. The host agent is already using port 5000. Any web server you create must use a different port (e.g., 5001, 8080).
+2. On Windows, never run Flask apps with debug=True or use_reloader=True inside captured subshells (this causes WinError 10038). Always use `debug=False, use_reloader=False`.
+3. To test web servers without blocking, prefer using unit tests (e.g., Flask test_client) or start them in a new window via `start cmd /k python ...` on Windows.
 """
 
 # --- Tool Declarations for Gemini (Manual Execution) ---
