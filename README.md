@@ -10,5 +10,14 @@ that runs locally on a server and uses Gemini.
     git clone https://github.com/Pjdur/web-agent.git
     ```
     
-2. Go to http://localhost:5000 and click "API Key" then enter
+2. ```bash
+   cd web-agent
+   ```
+
+3. Run the server
+   ```bash
+   python app.py
+   ```
+   
+4. Go to http://localhost:5000 and click "API Key" then enter
    your Gemini API key.
